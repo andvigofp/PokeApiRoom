@@ -28,8 +28,8 @@ fun PokemonDetailScreen(viewModel: PokemonListViewModel, pokemonId: Int, navCont
     var error by remember { mutableStateOf(false) }
 
     LaunchedEffect(pokemonId) {
-        viewModel.loadPokemonDetails(pokemonId, {
-            pokemon = it
+        viewModel.loadPokemonDetails(pokemonId, { loadedPokemon ->
+            pokemon = loadedPokemon
         }, {
             error = true
         })

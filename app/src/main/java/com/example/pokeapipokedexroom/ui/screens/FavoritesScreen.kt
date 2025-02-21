@@ -65,7 +65,8 @@ import com.example.pokeapipokedexroom.entidades.PokemonEntity
 fun FavoritesScreen(navController: NavController) {
     val viewModel: PokemonListViewModel = viewModel()
     val pokemonList by viewModel.favoritePokemonList.collectAsStateWithLifecycle()
-    var pokemonToDelete by remember { mutableStateOf<PokemonEntity?>(null) }
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
+    val pokemonToDelete by viewModel.pokemonToDelete.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.loadFavorites()
@@ -90,8 +91,8 @@ fun FavoritesScreen(navController: NavController) {
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             TextField(
-                value = viewModel.searchText,
-                onValueChange = { viewModel.searchText = it },
+                value = searchText,
+                onValueChange = { viewModel.setSearchText(it) },
                 placeholder = { Text("Buscar Pokémon") },
                 modifier = Modifier
                     .padding(16.dp)
@@ -102,11 +103,11 @@ fun FavoritesScreen(navController: NavController) {
                     cursorColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-            // Utilizando `pokemonList` para filtrar y mostrar la lista
-            val filteredPokemonList = if (viewModel.searchText.isEmpty()) {
+
+            val filteredPokemonList = if (searchText.isEmpty()) {
                 pokemonList
             } else {
-                pokemonList.filter { it.name.contains(viewModel.searchText, ignoreCase = true) }
+                pokemonList.filter { it.name.contains(searchText, ignoreCase = true) }
             }
 
             if (filteredPokemonList.isEmpty()) {
@@ -182,7 +183,7 @@ fun FavoritesScreen(navController: NavController) {
                                     IconButton(onClick = { navController.navigate("pokemon_detail/${pokemon.id}") }) {
                                         Icon(Icons.Default.Visibility, contentDescription = "Ver detalles")
                                     }
-                                    IconButton(onClick = { pokemonToDelete = pokemon }) {
+                                    IconButton(onClick = { viewModel.setPokemonToDeleteState(pokemon) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Eliminar Pokémon")
                                     }
                                 }
@@ -197,21 +198,21 @@ fun FavoritesScreen(navController: NavController) {
     // Diálogo de confirmación para eliminar un Pokémon
     pokemonToDelete?.let { pokemon ->
         AlertDialog(
-            onDismissRequest = { pokemonToDelete = null },
+            onDismissRequest = { viewModel.setPokemonToDeleteState(null) },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que quieres eliminar a '${pokemon.name}' de tus favoritos?") },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.deletePokemonById(pokemon.id)
-                        pokemonToDelete = null
+                        viewModel.setPokemonToDeleteState(null)
                     }
                 ) {
                     Text("Sí")
                 }
             },
             dismissButton = {
-                Button(onClick = { pokemonToDelete = null }) {
+                Button(onClick = { viewModel.setPokemonToDeleteState(null) }) {
                     Text("No")
                 }
             }

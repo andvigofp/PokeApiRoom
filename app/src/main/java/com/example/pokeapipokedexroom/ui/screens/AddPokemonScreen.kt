@@ -1,36 +1,56 @@
 package com.example.pokeapipokedexroom.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.pokeapipokedexroom.data.Pokemon
 import com.example.pokeapipokedexroom.ui.state.PokemonListViewModel
 import kotlinx.coroutines.launch
 
@@ -38,31 +58,34 @@ import kotlinx.coroutines.launch
 @Composable
 fun AddPokemonScreen(navController: NavController) {
     val viewModel: PokemonListViewModel = viewModel()
-    var pokemonNumber by remember { mutableStateOf("") }
-    var showSuccessDialog by remember { mutableStateOf(false) }
-    var showErrorDialog by remember { mutableStateOf(false) }
-    var showExistsDialog by remember { mutableStateOf(false) }
-    var showLoadingDialog by remember { mutableStateOf(false) }
+    val expanded by viewModel.expanded.collectAsStateWithLifecycle()
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
+    val selectedPokemon by viewModel.selectedPokemon.collectAsStateWithLifecycle()
+    val showSuccessDialog by viewModel.showSuccessDialog.collectAsStateWithLifecycle()
+    val showErrorDialog by viewModel.showErrorDialog.collectAsStateWithLifecycle()
+    val showExistsDialog by viewModel.showExistsDialog.collectAsStateWithLifecycle()
+    val showLoadingDialog by viewModel.showLoadingDialog.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
+    }
 
     fun addPokemon() {
-        val number = pokemonNumber.toIntOrNull()
-        if (number == null || number < 1 || number > 1025) {
-            showErrorDialog = true
-        } else {
+        selectedPokemon?.let { pokemon ->
             viewModel.viewModelScope.launch {
-                // Verificar si el Pokémon ya está en favoritos
-                val existingPokemon = viewModel.favoritePokemonList.value.any { it.id == number }
+                val existingPokemon = viewModel.favoritePokemonList.value.any { it.id == pokemon.id }
                 if (existingPokemon) {
-                    showExistsDialog = true
+                    viewModel.setShowExistsDialog(true)
                 } else {
-                    showLoadingDialog = true
-                    val exists = viewModel.checkPokemonExists(number)
-                    showLoadingDialog = false
+                    viewModel.setShowLoadingDialog(true)
+                    val exists = viewModel.checkPokemonExists(pokemon.id)
+                    viewModel.setShowLoadingDialog(false)
                     if (exists) {
-                        viewModel.addFavoritePokemonByNumber(number)
-                        showSuccessDialog = true
+                        viewModel.addFavoritePokemonByNumber(pokemon.id)
+                        viewModel.setShowSuccessDialog(true)
                     } else {
-                        showErrorDialog = true
+                        viewModel.setShowErrorDialog(true)
                     }
                 }
             }
@@ -84,32 +107,59 @@ fun AddPokemonScreen(navController: NavController) {
         Column(
             modifier = Modifier.padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            TextField(
-                value = pokemonNumber,
-                onValueChange = { pokemonNumber = it.filter { char -> char.isDigit() } },
-                label = { Text("Número del Pokémon") },
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-            )
+            Box {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { viewModel.setSearchText(it) },
+                    placeholder = { Text("Buscar Pokémon") },
+                    trailingIcon = {
+                        IconButton(onClick = { viewModel.setExpandedState(true) }) {
+                            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Expandir")
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    singleLine = true,
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { viewModel.setExpandedState(false) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    viewModel.filteredPokemonList.filter { it.name.contains(searchText, ignoreCase = true) }.forEach { pokemon ->
+                        DropdownMenuItem(
+                            text = { Text(pokemon.name.replaceFirstChar { it.uppercase() }) },
+                            onClick = {
+                                viewModel.setSelectedPokemon(pokemon)
+                                viewModel.setSearchText(pokemon.name) // Actualizar el campo de búsqueda con el Pokémon seleccionado
+                                viewModel.setExpandedState(false)
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth().padding(16.dp)
             ) {
                 Button(
-                    onClick = {
-                        addPokemon()
-                    },
-                    modifier = Modifier.padding(end = 8.dp)
+                    onClick = { addPokemon() },
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                 ) {
                     Text("Añadir Pokémon")
                 }
                 Button(
                     onClick = { navController.navigate("favorites") },
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier.weight(1f).padding(start = 8.dp)
                 ) {
                     Text("Cancelar")
                 }
@@ -117,14 +167,28 @@ fun AddPokemonScreen(navController: NavController) {
         }
     }
 
+    // Diálogo de error genérico
+    if (error) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setError(false) },
+            title = { Text("Error") },
+            text = { Text("Ha ocurrido un error. Por favor, intenta nuevamente.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.setError(false) }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     // Diálogo de alerta si el Pokémon no existe
     if (showErrorDialog) {
         AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
+            onDismissRequest = { viewModel.setShowErrorDialog(false) },
             title = { Text("Pokémon no existe") },
-            text = { Text("El número de Pokémon no existe en la Pokédex. Por favor, introduce un número entre 1 y 1025.") },
+            text = { Text("El Pokémon seleccionado no existe en la Pokédex.") },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
+                TextButton(onClick = { viewModel.setShowErrorDialog(false) }) {
                     Text("OK")
                 }
             }
@@ -134,11 +198,11 @@ fun AddPokemonScreen(navController: NavController) {
     // Diálogo de alerta si el Pokémon ya existe
     if (showExistsDialog) {
         AlertDialog(
-            onDismissRequest = { showExistsDialog = false },
+            onDismissRequest = { viewModel.setShowExistsDialog(false) },
             title = { Text("Pokémon ya existe") },
-            text = { Text("Ya existe un Pokémon con ese número en tus favoritos. Por favor, introduce otro número.") },
+            text = { Text("Ya existe un Pokémon con ese número en tus favoritos. Por favor, selecciona otro Pokémon.") },
             confirmButton = {
-                TextButton(onClick = { showExistsDialog = false }) {
+                TextButton(onClick = { viewModel.setShowExistsDialog(false) }) {
                     Text("OK")
                 }
             }
@@ -148,12 +212,12 @@ fun AddPokemonScreen(navController: NavController) {
     // Diálogo de alerta si el Pokémon se ha añadido correctamente
     if (showSuccessDialog) {
         AlertDialog(
-            onDismissRequest = { showSuccessDialog = false },
+            onDismissRequest = { viewModel.setShowSuccessDialog(false) },
             title = { Text("Pokémon añadido") },
             text = { Text("El Pokémon se ha añadido correctamente a tus favoritos.") },
             confirmButton = {
                 TextButton(onClick = {
-                    showSuccessDialog = false
+                    viewModel.setShowSuccessDialog(false)
                     navController.navigate("favorites") // Navegar a la pantalla de favoritos
                 }) {
                     Text("Aceptar")
@@ -165,7 +229,7 @@ fun AddPokemonScreen(navController: NavController) {
     // Diálogo de carga mientras se verifica la existencia del Pokémon
     if (showLoadingDialog) {
         AlertDialog(
-            onDismissRequest = { showLoadingDialog = false },
+            onDismissRequest = { viewModel.setShowLoadingDialog(false) },
             title = { Text("Verificando") },
             text = { Text("Por favor espera mientras verificamos la existencia del Pokémon...") },
             confirmButton = { }

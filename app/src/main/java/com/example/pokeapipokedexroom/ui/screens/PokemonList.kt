@@ -26,6 +26,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.pokeapipokedexroom.data.toEntity
 import com.example.pokeapipokedexroom.entidades.PokemonEntity
@@ -41,6 +43,8 @@ import com.example.pokeapipokedexroom.ui.state.PokemonListViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PokemonList(navController: NavController, viewModel: PokemonListViewModel) {
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -72,8 +76,8 @@ fun PokemonList(navController: NavController, viewModel: PokemonListViewModel) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
             TextField(
-                value = viewModel.searchText,
-                onValueChange = { viewModel.searchText = it },
+                value = searchText,
+                onValueChange = { viewModel.setSearchText(it) },
                 placeholder = { Text("Buscar Pokémon") },
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
@@ -91,8 +95,9 @@ fun PokemonList(navController: NavController, viewModel: PokemonListViewModel) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Convert Pokemon to PokemonEntity
-                val pokemonEntities = viewModel.filteredPokemonList.map { it.toEntity() }
+                // Convertir Pokemon a PokemonEntity
+                val filteredPokemonList = viewModel.filteredPokemonList.filter { it.name.contains(searchText, ignoreCase = true) }
+                val pokemonEntities = filteredPokemonList.map { it.toEntity() }
                 items(pokemonEntities) { pokemonEntity ->
                     PokemonCell(pokemonEntity, navController)
                 }
